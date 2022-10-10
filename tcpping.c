@@ -1,6 +1,6 @@
 /*********************************************************
  * Program: tcpping - Utility for TCP based ping.        *
- * Author:  Joseph Colton                                *
+ * Author:  Joseph Colton <josephcolton@gmail.com>       *
  * License: GNU General Public License 3.0               *
  *          https://www.gnu.org/licenses/gpl-3.0.en.html *
  *********************************************************/
@@ -132,7 +132,7 @@ void usage(char *binary) {
   printf("Usage:\n\n");
   printf("\t%s [OPTIONS] HOSTNAME\n\n", binary);
   printf("OPTIONS:\n");
-  printf("\t-c COUNT  Number of tcp pings\n");
+  printf("\t-c COUNT  Number of tcp pings (default: unlimited)\n");
   printf("\t-p PORT   TCP port number (default: 443)\n");
   printf("\t-h        Display this help message\n");
 }
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
 	  port = atoi(argv[i]);
 	} else {
 	  status = -1;
-	  printf("Parse Error: Missing count number.\n");
+	  printf("Parse Error: Missing port number.\n");
 	  break;
 	}
       }
