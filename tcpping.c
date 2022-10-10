@@ -19,6 +19,7 @@
 /*************************
  * Globals and Constants *
  *************************/
+const char version[] = "1.0.0";
 const int FALSE = 0;
 const int TRUE = 1;
 const int LEN = 256;   // Maximum hostname size
@@ -132,9 +133,11 @@ void usage(char *binary) {
   printf("Usage:\n\n");
   printf("\t%s [OPTIONS] HOSTNAME\n\n", binary);
   printf("OPTIONS:\n");
-  printf("\t-c COUNT  Number of tcp pings (default: unlimited)\n");
-  printf("\t-p PORT   TCP port number (default: 443)\n");
-  printf("\t-h        Display this help message\n");
+  printf("\t-c, --count COUNT  Number of tcp pings (default: unlimited)\n");
+  printf("\t-p, --port PORT    TCP port number (default: 443)\n");
+  printf("\t-h, --help         Display this help message\n");
+  printf("\t-v, --version      Display version information\n");
+  printf("\n");
 }
 
 /**************************************************
@@ -171,7 +174,7 @@ int main(int argc, char *argv[]) {
     // Process Options
     if (argv[i][0] == '-') {
       // Port number
-      if (strncmp(argv[i], "-p", LEN) == 0) {
+      if ((strncmp(argv[i], "-p", LEN) == 0) || (strncmp(argv[i], "--port", LEN) == 0)) {
 	i++;
 	if (i < argc) {
 	  port = atoi(argv[i]);
@@ -182,7 +185,7 @@ int main(int argc, char *argv[]) {
 	}
       }
       // Ping count
-      if (strncmp(argv[i], "-c", LEN) == 0) {
+      if ((strncmp(argv[i], "-c", LEN) == 0) || (strncmp(argv[i], "--count", LEN) == 0)) {
 	i++;
 	if (i < argc) {
 	  count = atoi(argv[i]);
@@ -193,8 +196,13 @@ int main(int argc, char *argv[]) {
 	}
       }
       // Help options
-      if (strncmp(argv[i], "-h", LEN) == 0) {
+      if ((strncmp(argv[i], "-h", LEN) == 0) || (strncmp(argv[i], "--help", LEN) == 0)) {
 	break;
+      }
+      // Version Infomation
+      if ((strncmp(argv[i], "-v", LEN) == 0) || (strncmp(argv[i], "--version", LEN) == 0)) {
+	printf("tcpping %s\n", version);
+	return 0;
       }
     }
     // Finished Options
