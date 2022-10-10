@@ -156,6 +156,8 @@ int main(int argc, char *argv[]) {
   double stat_min = 0, stat_max = 0, stat_ave = 0;
   int stat_count = 0;
   int ping_count = 0; int ping_success = 0; int ping_fail = 0;
+  struct timespec mainstamp1, mainstamp2;
+  double total_time, diff_sec, diff_nsec;
 
   // Signal interception
   struct sigaction action;
@@ -225,6 +227,9 @@ int main(int argc, char *argv[]) {
   // Start ping process
   printf("TCP PING %s (%s) tcp port %d\n", hostname, ipaddr, port);
 
+  // Read clock before starting tcp pinging
+  clock_gettime(CLOCK_MONOTONIC_RAW, &mainstamp1);
+
   int countdown = count;
   double rtt;
   while(!terminate && (count == 0 || countdown)) {
@@ -258,8 +263,16 @@ int main(int argc, char *argv[]) {
     if (countdown) sleep(1);
   }
 
+  // Read clock after stopping tcp pinging
+  clock_gettime(CLOCK_MONOTONIC_RAW, &mainstamp2);
+  diff_sec = mainstamp2.tv_sec - mainstamp1.tv_sec;
+  diff_nsec = mainstamp2.tv_nsec - mainstamp1.tv_nsec;
+  total_time = diff_sec * 1000;
+  total_time+= diff_nsec / 1000000;
+
+  // Display statistics
   printf("--- %s tcp ping statistics ---\n", hostname);
-  printf("%d pings, %d success, %d failed\n", ping_count, ping_success, ping_fail);
+  printf("%d pings, %d success, %d failed, time: %.3f ms\n", ping_count, ping_success, ping_fail, total_time);
   printf("rtt min/ave/max/range = %0.3f/%0.3f/%0.3f/%0.3f ms\n", stat_min, stat_ave, stat_max, stat_max - stat_min);
   return 0;
 }
