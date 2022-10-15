@@ -19,7 +19,7 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.2";
+const char version[] = "1.0.3";
 const int FALSE = 0;
 const int TRUE = 1;
 const int LEN = 256;   // Maximum hostname size
@@ -135,7 +135,8 @@ void usage(char *binary) {
   printf("OPTIONS:\n");
   printf("\t-c, --count COUNT    Number of tcp pings (default: unlimited)\n");
   printf("\t-p, --port PORT      TCP port number (default: 443)\n");
-  printf("\t-i, --ignore COUNT   Number of pings to ignore in statistics (default: 0)\n");
+  printf("\t-i, --interval SEC   Number of seconds between pings (default: 1)\n");
+  printf("\t-s, --skip COUNT     Number of pings to skip in statistics (default: 0)\n");
   printf("\t-t, --timeout SEC    Number of seconds to wait for timeout (default: 3)\n");
   printf("\t-d, --display all    Display all pings and statistics (default)\n");
   printf("\t              stat   Display only ending statistics\n");
@@ -158,17 +159,18 @@ int main(int argc, char *argv[]) {
   char hostname[LEN];    // Hostname
   char ipaddr[LEN];      // IP Address
   int port = 443;        // TCP Port Number
-  int count = 0;
-  // Stats
+  int count = 0;         // Number of pings
+  // Statistics
   double stat_sum = 0;
   double stat_min = 0, stat_max = 0, stat_ave = 0;
   int stat_count = 0;
   int ping_count = 0; int ping_success = 0; int ping_fail = 0;
   double ping_loss = 0.0;
-  struct timespec mainstamp1, mainstamp2;
   double total_time, diff_sec, diff_nsec;
-  int display = 0; // 0 = All pings and stats, 1 = stats only, 2 = clean
-  int ignore = 0;  // Number of pings to ignore from stats
+  struct timespec mainstamp1, mainstamp2; // Keep track of complete elapsed run time
+  int display = 0;  // 0 = All pings and stats, 1 = stats only, 2 = clean
+  int interval = 1; // Number of seconds between pings
+  int skip = 0;     // Number of pings to skip and ignore from stats
 
   // Signal interception
   struct sigaction action;
@@ -203,14 +205,25 @@ int main(int argc, char *argv[]) {
 	  break;
 	}
       }
-      // Ignore count
-      if ((strncmp(argv[i], "-i", LEN) == 0) || (strncmp(argv[i], "--ignore", LEN) == 0)) {
+      // Skip count
+      if ((strncmp(argv[i], "-s", LEN) == 0) || (strncmp(argv[i], "--skip", LEN) == 0)) {
 	i++;
 	if (i < argc) {
-	  ignore = atoi(argv[i]);
+	  skip = atoi(argv[i]);
 	} else {
 	  status = -1;
-	  printf("Parse Error: Missing ignore count number.\n");
+	  printf("Parse Error: Missing skip/ignore count number.\n");
+	  break;
+	}
+      }
+      // Interval seconds
+      if ((strncmp(argv[i], "-i", LEN) == 0) || (strncmp(argv[i], "--interval", LEN) == 0)) {
+	i++;
+	if (i < argc) {
+	  interval = atoi(argv[i]);
+	} else {
+	  status = -1;
+	  printf("Parse Error: Missing interval seconds.\n");
 	  break;
 	}
       }
@@ -295,23 +308,23 @@ int main(int argc, char *argv[]) {
     // Display RTT latency
     if (display == 0) {
       if (rtt > 0) {
-	if (ignore) printf("%s: %.3f ms (ignore: %d)\n", ipaddr, rtt, ignore);
+	if (skip) printf("%s: %.3f ms (skip: %d)\n", ipaddr, rtt, skip);
 	else printf("%s: %.3f ms\n", ipaddr, rtt);
       } else {
 	if (rtt == -1) {
-	  if (ignore) printf("%s: timeout(%d) (ignore: %d)\n", ipaddr, timeout, ignore);
+	  if (skip) printf("%s: timeout(%d) (skip: %d)\n", ipaddr, timeout, skip);
 	  else printf("%s: timeout(%d)\n", ipaddr, timeout);
 	}
 	if (rtt == -2) {
-	  if (ignore) printf("%s: connection error (ignore: %d)\n", ipaddr, ignore);
+	  if (skip) printf("%s: connection error (skip: %d)\n", ipaddr, skip);
 	  else printf("%s: connection error\n", ipaddr);
 	}
       }
     }
 
     // Update statistics
-    if (ignore) {
-      ignore--;
+    if (skip) {
+      skip--;
     } else {
       ping_count++;
       if (rtt > 0) {
@@ -332,7 +345,7 @@ int main(int argc, char *argv[]) {
     
     // Update countdown
     countdown--;
-    if (countdown) sleep(1);
+    if (countdown) sleep(interval);
   }
 
   // Read clock after stopping tcp pinging
