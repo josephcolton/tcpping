@@ -9,6 +9,7 @@
 #include <stdio.h>     // printf
 #include <stdlib.h>    // exit
 #include <unistd.h>    // sleep
+#include <ctype.h>     // isdigit
 #include <arpa/inet.h> // inet_addr()
 #include <netdb.h>     // hostent, gethostbyname()
 #include <string.h>    // strncpy
@@ -19,7 +20,7 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.3";
+const char version[] = "1.0.4";
 const int FALSE = 0;
 const int TRUE = 1;
 const int LEN = 256;   // Maximum hostname size
@@ -124,6 +125,25 @@ void signal_handler(int signum) {
   terminate = TRUE;
 }
 
+/*****************************************************
+ * is_number - Checks to see if a string is a number *
+ *                                                   *
+ * Reads in a string until the end and varifies that *
+ * all of the characters are digits.                 *
+ *****************************************************/
+int is_number(char *str, int maxint) {
+  int rvalue = FALSE;
+  for (int i=0; i < maxint; i++) {
+    if (str[i] == 0) break; // End of line
+    if (isdigit(str[i])) rvalue = TRUE; // Found a digit
+    if (! isdigit(str[i])) { // Found a non-digit before the end
+      rvalue = FALSE;
+      break;
+    }
+  }
+  return rvalue;
+}
+
 /*************************************
  * usage - Print the usage statement *
  *                                   *
@@ -186,7 +206,7 @@ int main(int argc, char *argv[]) {
       // Port number
       if ((strncmp(argv[i], "-p", LEN) == 0) || (strncmp(argv[i], "--port", LEN) == 0)) {
 	i++;
-	if (i < argc) {
+	if (i < argc && is_number(argv[i], LEN)) {
 	  port = atoi(argv[i]);
 	} else {
 	  status = -1;
@@ -197,7 +217,7 @@ int main(int argc, char *argv[]) {
       // Ping count
       if ((strncmp(argv[i], "-c", LEN) == 0) || (strncmp(argv[i], "--count", LEN) == 0)) {
 	i++;
-	if (i < argc) {
+	if (i < argc && is_number(argv[i], LEN)) {
 	  count = atoi(argv[i]);
 	} else {
 	  status = -1;
@@ -208,7 +228,7 @@ int main(int argc, char *argv[]) {
       // Skip count
       if ((strncmp(argv[i], "-s", LEN) == 0) || (strncmp(argv[i], "--skip", LEN) == 0)) {
 	i++;
-	if (i < argc) {
+	if (i < argc && is_number(argv[i], LEN)) {
 	  skip = atoi(argv[i]);
 	} else {
 	  status = -1;
@@ -219,7 +239,7 @@ int main(int argc, char *argv[]) {
       // Interval seconds
       if ((strncmp(argv[i], "-i", LEN) == 0) || (strncmp(argv[i], "--interval", LEN) == 0)) {
 	i++;
-	if (i < argc) {
+	if (i < argc && is_number(argv[i], LEN)) {
 	  interval = atoi(argv[i]);
 	} else {
 	  status = -1;
@@ -230,7 +250,7 @@ int main(int argc, char *argv[]) {
       // Timeout seconds
       if ((strncmp(argv[i], "-t", LEN) == 0) || (strncmp(argv[i], "--timeout", LEN) == 0)) {
 	i++;
-	if (i < argc) {
+	if (i < argc && is_number(argv[i], LEN)) {
 	  timeout = atoi(argv[i]);
 	} else {
 	  status = -1;
