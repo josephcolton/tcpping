@@ -19,13 +19,12 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.1";
+const char version[] = "1.0.2";
 const int FALSE = 0;
 const int TRUE = 1;
 const int LEN = 256;   // Maximum hostname size
-const int TIMEOUT = 3; // Seconds before timeout
+int timeout = 3;       // Seconds before timeout
 int terminate = FALSE; // SIGTERM, SIGINT triggered
-int display = 0;       // 0 = All pings and stats, 1 = stats only, 2 = clean
 
 /*********************************************
  * tcp_ping - Single tcp ping to ipaddr:port *
@@ -41,7 +40,7 @@ double tcp_ping(char *ipaddr, int port) {
   struct sockaddr_in address;
   struct timespec timestamp1, timestamp2;
   fd_set fdset;
-  struct timeval tv;
+  struct timeval tv; // Time value for timeout checks
   int status;
   int optval;
   socklen_t optlen;
@@ -59,7 +58,7 @@ double tcp_ping(char *ipaddr, int port) {
   fcntl(sock, F_SETFL, arg);
   
   // Set timeout
-  tv.tv_sec = TIMEOUT;
+  tv.tv_sec = timeout;
   tv.tv_usec = 0;
 
   // Set packet information
@@ -136,11 +135,13 @@ void usage(char *binary) {
   printf("OPTIONS:\n");
   printf("\t-c, --count COUNT    Number of tcp pings (default: unlimited)\n");
   printf("\t-p, --port PORT      TCP port number (default: 443)\n");
-  printf("\t-h, --help           Display this help message\n");
-  printf("\t-v, --version        Display version information\n");
+  printf("\t-i, --ignore COUNT   Number of pings to ignore in statistics (default: 0)\n");
+  printf("\t-t, --timeout SEC    Number of seconds to wait for timeout (default: 3)\n");
   printf("\t-d, --display all    Display all pings and statistics (default)\n");
   printf("\t              stat   Display only ending statistics\n");
   printf("\t              clean  Display clean minimal statistics for parsing\n");
+  printf("\t-h, --help           Display this help message\n");
+  printf("\t-v, --version        Display version information\n");
   printf("\n");
 }
 
@@ -166,6 +167,8 @@ int main(int argc, char *argv[]) {
   double ping_loss = 0.0;
   struct timespec mainstamp1, mainstamp2;
   double total_time, diff_sec, diff_nsec;
+  int display = 0; // 0 = All pings and stats, 1 = stats only, 2 = clean
+  int ignore = 0;  // Number of pings to ignore from stats
 
   // Signal interception
   struct sigaction action;
@@ -196,7 +199,29 @@ int main(int argc, char *argv[]) {
 	  count = atoi(argv[i]);
 	} else {
 	  status = -1;
-	  printf("Parse Error: Missing count number.\n");
+	  printf("Parse Error: Missing ping count number.\n");
+	  break;
+	}
+      }
+      // Ignore count
+      if ((strncmp(argv[i], "-i", LEN) == 0) || (strncmp(argv[i], "--ignore", LEN) == 0)) {
+	i++;
+	if (i < argc) {
+	  ignore = atoi(argv[i]);
+	} else {
+	  status = -1;
+	  printf("Parse Error: Missing ignore count number.\n");
+	  break;
+	}
+      }
+      // Timeout seconds
+      if ((strncmp(argv[i], "-t", LEN) == 0) || (strncmp(argv[i], "--timeout", LEN) == 0)) {
+	i++;
+	if (i < argc) {
+	  timeout = atoi(argv[i]);
+	} else {
+	  status = -1;
+	  printf("Parse Error: Missing timeout seconds.\n");
 	  break;
 	}
       }
@@ -267,32 +292,44 @@ int main(int argc, char *argv[]) {
     // single ping
     rtt = tcp_ping(ipaddr, port);
 
-    // Update statistics
-    ping_count++;
-    if (rtt > 0) {
-      ping_success++;
-      stat_sum += rtt;
-      stat_count++;
-      if (stat_count == 1) {
-	stat_min = stat_max = rtt;
-      }
-      if (rtt < stat_min) stat_min = rtt;
-      if (rtt > stat_max) stat_max = rtt;
-      stat_ave = stat_sum / stat_count;
-    } else {
-      ping_fail++;
-    }
-    ping_loss = (double)ping_fail / (double)ping_count;
-    
     // Display RTT latency
     if (display == 0) {
       if (rtt > 0) {
-	printf("%s: %.3f ms\n", ipaddr, rtt);
+	if (ignore) printf("%s: %.3f ms (ignore: %d)\n", ipaddr, rtt, ignore);
+	else printf("%s: %.3f ms\n", ipaddr, rtt);
       } else {
-	if (rtt == -1) printf("%s: timeout\n", ipaddr);
-	if (rtt == -2) printf("%s: connection error\n", ipaddr);      
+	if (rtt == -1) {
+	  if (ignore) printf("%s: timeout(%d) (ignore: %d)\n", ipaddr, timeout, ignore);
+	  else printf("%s: timeout(%d)\n", ipaddr, timeout);
+	}
+	if (rtt == -2) {
+	  if (ignore) printf("%s: connection error (ignore: %d)\n", ipaddr, ignore);
+	  else printf("%s: connection error\n", ipaddr);
+	}
       }
     }
+
+    // Update statistics
+    if (ignore) {
+      ignore--;
+    } else {
+      ping_count++;
+      if (rtt > 0) {
+	ping_success++;
+	stat_sum += rtt;
+	stat_count++;
+	if (stat_count == 1) {
+	  stat_min = stat_max = rtt;
+	}
+	if (rtt < stat_min) stat_min = rtt;
+	if (rtt > stat_max) stat_max = rtt;
+	stat_ave = stat_sum / stat_count;
+      } else {
+	ping_fail++;
+      }
+      ping_loss = (double)ping_fail / (double)ping_count * 100;
+    }
+    
     // Update countdown
     countdown--;
     if (countdown) sleep(1);
@@ -308,11 +345,12 @@ int main(int argc, char *argv[]) {
   // Display statistics
   if (display == 0 || display == 1) {
     printf("--- %s tcp ping statistics ---\n", hostname);
-    printf("%d pings, %d success, %d failed, %0.1f%% loss, time: %.3f ms\n",
+    printf("%d pings, %d success, %d failed, %0.1f%% loss, total time: %.3f ms\n",
 	   ping_count, ping_success, ping_fail, ping_loss, total_time);
     printf("rtt min/ave/max/range = %0.3f/%0.3f/%0.3f/%0.3f ms\n", stat_min, stat_ave, stat_max, stat_max - stat_min);
   }
   if (display == 2) {
+    printf("Pings: %d\n", ping_count);
     printf("Min: %0.3f\n", stat_min);
     printf("Max: %0.3f\n", stat_max);
     printf("Ave: %0.3f\n", stat_ave);
