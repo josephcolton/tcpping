@@ -19,12 +19,13 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.0";
+const char version[] = "1.0.1";
 const int FALSE = 0;
 const int TRUE = 1;
 const int LEN = 256;   // Maximum hostname size
 const int TIMEOUT = 3; // Seconds before timeout
 int terminate = FALSE; // SIGTERM, SIGINT triggered
+int display = 0;       // 0 = All pings and stats, 1 = stats only, 2 = clean
 
 /*********************************************
  * tcp_ping - Single tcp ping to ipaddr:port *
@@ -133,10 +134,13 @@ void usage(char *binary) {
   printf("Usage:\n\n");
   printf("\t%s [OPTIONS] HOSTNAME\n\n", binary);
   printf("OPTIONS:\n");
-  printf("\t-c, --count COUNT  Number of tcp pings (default: unlimited)\n");
-  printf("\t-p, --port PORT    TCP port number (default: 443)\n");
-  printf("\t-h, --help         Display this help message\n");
-  printf("\t-v, --version      Display version information\n");
+  printf("\t-c, --count COUNT    Number of tcp pings (default: unlimited)\n");
+  printf("\t-p, --port PORT      TCP port number (default: 443)\n");
+  printf("\t-h, --help           Display this help message\n");
+  printf("\t-v, --version        Display version information\n");
+  printf("\t-d, --display all    Display all pings and statistics (default)\n");
+  printf("\t              stat   Display only ending statistics\n");
+  printf("\t              clean  Display clean minimal statistics for parsing\n");
   printf("\n");
 }
 
@@ -159,6 +163,7 @@ int main(int argc, char *argv[]) {
   double stat_min = 0, stat_max = 0, stat_ave = 0;
   int stat_count = 0;
   int ping_count = 0; int ping_success = 0; int ping_fail = 0;
+  double ping_loss = 0.0;
   struct timespec mainstamp1, mainstamp2;
   double total_time, diff_sec, diff_nsec;
 
@@ -189,6 +194,23 @@ int main(int argc, char *argv[]) {
 	i++;
 	if (i < argc) {
 	  count = atoi(argv[i]);
+	} else {
+	  status = -1;
+	  printf("Parse Error: Missing count number.\n");
+	  break;
+	}
+      }
+      // Display settings
+      if ((strncmp(argv[i], "-d", LEN) == 0) || (strncmp(argv[i], "--display", LEN) == 0)) {
+	i++;
+	if (i < argc) {
+	  // Display option
+	  if (strncmp(argv[i], "all", LEN) == 0) { display = 0; continue; }
+	  if (strncmp(argv[i], "stat", LEN) == 0) { display = 1; continue; }
+	  if (strncmp(argv[i], "clean", LEN) == 0) { display = 2; continue; }
+	  status = -1;
+	  printf("Parse Error: Missing display setting.\n");
+	  break;	  
 	} else {
 	  status = -1;
 	  printf("Parse Error: Missing count number.\n");
@@ -233,7 +255,8 @@ int main(int argc, char *argv[]) {
   strncpy(ipaddr, inet_ntoa(h_addr), LEN);
   
   // Start ping process
-  printf("TCP PING %s (%s) tcp port %d\n", hostname, ipaddr, port);
+  if (display == 0 || display == 1)
+    printf("TCP PING %s (%s) tcp port %d\n", hostname, ipaddr, port);
 
   // Read clock before starting tcp pinging
   clock_gettime(CLOCK_MONOTONIC_RAW, &mainstamp1);
@@ -259,14 +282,18 @@ int main(int argc, char *argv[]) {
     } else {
       ping_fail++;
     }
+    ping_loss = (double)ping_fail / (double)ping_count;
     
     // Display RTT latency
-    if (rtt > 0) {
-      printf("%s: %.3f ms\n", ipaddr, rtt);
-    } else {
-      if (rtt == -1) printf("%s: timeout\n", ipaddr);
-      if (rtt == -2) printf("%s: connection error\n", ipaddr);      
+    if (display == 0) {
+      if (rtt > 0) {
+	printf("%s: %.3f ms\n", ipaddr, rtt);
+      } else {
+	if (rtt == -1) printf("%s: timeout\n", ipaddr);
+	if (rtt == -2) printf("%s: connection error\n", ipaddr);      
+      }
     }
+    // Update countdown
     countdown--;
     if (countdown) sleep(1);
   }
@@ -279,8 +306,17 @@ int main(int argc, char *argv[]) {
   total_time+= diff_nsec / 1000000;
 
   // Display statistics
-  printf("--- %s tcp ping statistics ---\n", hostname);
-  printf("%d pings, %d success, %d failed, time: %.3f ms\n", ping_count, ping_success, ping_fail, total_time);
-  printf("rtt min/ave/max/range = %0.3f/%0.3f/%0.3f/%0.3f ms\n", stat_min, stat_ave, stat_max, stat_max - stat_min);
+  if (display == 0 || display == 1) {
+    printf("--- %s tcp ping statistics ---\n", hostname);
+    printf("%d pings, %d success, %d failed, %0.1f%% loss, time: %.3f ms\n",
+	   ping_count, ping_success, ping_fail, ping_loss, total_time);
+    printf("rtt min/ave/max/range = %0.3f/%0.3f/%0.3f/%0.3f ms\n", stat_min, stat_ave, stat_max, stat_max - stat_min);
+  }
+  if (display == 2) {
+    printf("Min: %0.3f\n", stat_min);
+    printf("Max: %0.3f\n", stat_max);
+    printf("Ave: %0.3f\n", stat_ave);
+    printf("Loss: %0.1f\n", ping_loss);
+  }
   return 0;
 }
