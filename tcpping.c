@@ -20,9 +20,8 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.4";
-const int FALSE = 0;
-const int TRUE = 1;
+const char version[] = "1.0.5";
+typedef enum {FALSE = 0, TRUE = 1} boolean;
 const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
 int terminate = FALSE; // SIGTERM, SIGINT triggered
