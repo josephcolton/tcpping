@@ -1,8 +1,10 @@
+CC = gcc
+
 tcpping: tcpping.c
-	gcc tcpping.c -o tcpping
+	$(CC) tcpping.c -o tcpping
 
 install: tcpping
-	cp tcpping /usr/bin/
+	sudo cp tcpping /usr/bin/
 
 clean:
 	rm tcpping
