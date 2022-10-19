@@ -20,7 +20,7 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.5";
+const char version[] = "1.0.6";
 typedef enum {FALSE = 0, TRUE = 1} boolean;
 const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
@@ -180,6 +180,7 @@ int main(int argc, char *argv[]) {
   int port = 443;        // TCP Port Number
   int count = 0;         // Number of pings
   // Statistics
+  int seq = 0;           // Sequence number
   double stat_sum = 0;
   double stat_min = 0, stat_max = 0, stat_ave = 0;
   int stat_count = 0;
@@ -323,20 +324,21 @@ int main(int argc, char *argv[]) {
   while(!terminate && (count == 0 || countdown)) {
     // single ping
     rtt = tcp_ping(ipaddr, port);
-
+    seq++;
+    
     // Display RTT latency
     if (display == 0) {
       if (rtt > 0) {
-	if (skip) printf("%s: %.3f ms (skip: %d)\n", ipaddr, rtt, skip);
-	else printf("%s: %.3f ms\n", ipaddr, rtt);
+	if (skip) printf("%s: seq=%d time=%0.3f ms (skip: %d)\n", ipaddr, seq, rtt, skip);
+	else printf("%s: seq=%d time=%0.3f ms\n", ipaddr, seq, rtt);
       } else {
 	if (rtt == -1) {
-	  if (skip) printf("%s: timeout(%d) (skip: %d)\n", ipaddr, timeout, skip);
-	  else printf("%s: timeout(%d)\n", ipaddr, timeout);
+	  if (skip) printf("%s: seq=%d timeout(%d) (skip: %d)\n", ipaddr, seq, timeout, skip);
+	  else printf("%s: seq=%d timeout(%d)\n", ipaddr, seq, timeout);
 	}
 	if (rtt == -2) {
-	  if (skip) printf("%s: connection error (skip: %d)\n", ipaddr, skip);
-	  else printf("%s: connection error\n", ipaddr);
+	  if (skip) printf("%s: seq=%d connection error (skip: %d)\n", ipaddr, seq, skip);
+	  else printf("%s: seq=%d connection error\n", ipaddr, seq);
 	}
       }
     }
@@ -377,7 +379,7 @@ int main(int argc, char *argv[]) {
   // Display statistics
   if (display == 0 || display == 1) {
     printf("--- %s tcp ping statistics ---\n", hostname);
-    printf("%d pings, %d success, %d failed, %0.1f%% loss, total time: %.3f ms\n",
+    printf("%d pings, %d success, %d failed, %0.1f%% loss, total run time: %0.3f ms\n",
 	   ping_count, ping_success, ping_fail, ping_loss, total_time);
     printf("rtt min/ave/max/range = %0.3f/%0.3f/%0.3f/%0.3f ms\n", stat_min, stat_ave, stat_max, stat_max - stat_min);
   }
