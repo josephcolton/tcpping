@@ -132,7 +132,8 @@ void signal_handler(int signum) {
  *****************************************************/
 int is_number(char *str, int maxint) {
   int rvalue = FALSE;
-  for (int i=0; i < maxint; i++) {
+  int i;
+  for (i=0; i < maxint; i++) {
     if (str[i] == 0) break; // End of line
     if (isdigit(str[i])) rvalue = TRUE; // Found a digit
     if (! isdigit(str[i])) { // Found a non-digit before the end
@@ -200,7 +201,8 @@ int main(int argc, char *argv[]) {
   
   // Parse arguments
   int status = 0;
-  for (int i=1; i < argc; i++) {
+  int i;
+  for (i=1; i < argc; i++) {
     // Process Options
     if (argv[i][0] == '-') {
       // Port number
