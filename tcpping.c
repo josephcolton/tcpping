@@ -323,6 +323,8 @@ int main(int argc, char *argv[]) {
 
   int countdown = count;
   double rtt;
+  double diff, prev_rtt = -1, jitter = 0, jitter_total = 0; // Jitter statistics
+  int jitter_count = 0;
   while(!terminate && (count == 0 || countdown)) {
     // single ping
     rtt = tcp_ping(ipaddr, port);
@@ -352,8 +354,18 @@ int main(int argc, char *argv[]) {
       ping_count++;
       if (rtt > 0) {
 	ping_success++;
-	stat_sum += rtt;
-	stat_count++;
+	stat_sum += rtt;  // Update sum stats
+	stat_count++;     // Update total recorded stats
+	if (prev_rtt == -1) { // Jitter staticistis
+	  prev_rtt = rtt;
+	} else {
+	  diff = prev_rtt - rtt;
+	  if (diff < 0) diff = 0 - diff;
+	  jitter_total += diff;
+	  prev_rtt = rtt;
+	  jitter_count++;
+	  jitter = jitter_total / jitter_count;
+	}
 	if (stat_count == 1) {
 	  stat_min = stat_max = rtt;
 	}
@@ -383,7 +395,7 @@ int main(int argc, char *argv[]) {
     printf("--- %s tcp ping statistics ---\n", hostname);
     printf("%d pings, %d success, %d failed, %0.1f%% loss, total run time: %0.3f ms\n",
 	   ping_count, ping_success, ping_fail, ping_loss, total_time);
-    printf("rtt min/ave/max/range = %0.3f/%0.3f/%0.3f/%0.3f ms\n", stat_min, stat_ave, stat_max, stat_max - stat_min);
+    printf("rtt min/ave/max/range/jitter = %0.3f/%0.3f/%0.3f/%0.3f/%0.3f ms\n", stat_min, stat_ave, stat_max, stat_max - stat_min, jitter);
   }
   if (display == 2) {
     printf("Pings: %d\n", ping_count);
