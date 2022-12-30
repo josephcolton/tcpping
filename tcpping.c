@@ -20,7 +20,7 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.6";
+const char version[] = "1.0.7";
 typedef enum {FALSE = 0, TRUE = 1} boolean;
 const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
@@ -150,6 +150,7 @@ int is_number(char *str, int maxint) {
  * Displays the usage statement.     *
  *************************************/
 void usage(char *binary) {
+  printf("tcpping %s\n", version);
   printf("Usage:\n\n");
   printf("\t%s [OPTIONS] HOSTNAME\n\n", binary);
   printf("OPTIONS:\n");
@@ -402,6 +403,7 @@ int main(int argc, char *argv[]) {
     printf("Min: %0.3f\n", stat_min);
     printf("Max: %0.3f\n", stat_max);
     printf("Ave: %0.3f\n", stat_ave);
+    printf("Jitter: %0.3f\n", jitter);
     printf("Loss: %0.1f\n", ping_loss);
   }
   return 0;
