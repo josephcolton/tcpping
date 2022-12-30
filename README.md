@@ -12,7 +12,7 @@ sudo make install
 The tcpping utility will be installed in the **/usr/bin/** directory.
 
 # Running tcpping
-The tcpping utility is used to test the round trip time RTT latency between your client and a remote server.  Because TCP requires a port number to connect to, tcpping defaults to connecting to TCP port 443 (HTTPS).  It will connect to the remote server using the TCP threeway handshake.  This process requires the tcpping utility to send a SYN packet and wait for the ACK to return.  At this point, the utility has seen a round trip communication, so it can disconnect and report the time that was consumed in the process.
+The tcpping utility is used to test the round trip time RTT latency between your client and a remote server.  Because TCP requires a port number to connect to, tcpping defaults to connecting to TCP port 443 (HTTPS).  It will connect to the remote server using the TCP threeway handshake.  This process requires the tcpping utility to send a SYN packet and wait for the SYN-ACK to return.  At this point, the utility has seen a round trip communication, so it can disconnect and report the time that was consumed in the process.
 
 The basic execution of the program would be to use tcpping to connect to a remote server.  The following would connect to example.com on TCP port 443.
 

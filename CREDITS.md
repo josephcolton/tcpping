@@ -1,6 +1,6 @@
 ### Developers:
 
-- Joseph Colton (josephcolton) - Wrote TCP ping code (versions <=1.0.x)
+- Joseph Colton (josephcolton) - Wrote TCP ping code (versions 1.0.x)
 
 ### Thanks to:
 
