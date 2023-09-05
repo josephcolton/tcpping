@@ -20,7 +20,7 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.7";
+const char version[] = "1.0.8";
 typedef enum {FALSE = 0, TRUE = 1} boolean;
 const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
@@ -154,7 +154,8 @@ void usage(char *binary) {
   printf("Usage:\n\n");
   printf("\t%s [OPTIONS] HOSTNAME\n\n", binary);
   printf("OPTIONS:\n");
-  printf("\t-c, --count COUNT    Number of tcp pings (default: unlimited)\n");
+  printf("\t-a, --audible        Audible ping sound\n");
+  printf("\t-c, --count COUNT    Stop after COUNT tcp pings (default: unlimited)\n");
   printf("\t-p, --port PORT      TCP port number (default: 443)\n");
   printf("\t-i, --interval SEC   Number of seconds between pings (default: 1)\n");
   printf("\t-s, --skip COUNT     Number of pings to skip in statistics (default: 0)\n");
@@ -175,12 +176,13 @@ void usage(char *binary) {
  * statistical results.                           *
  **************************************************/
 int main(int argc, char *argv[]) {
-  struct hostent *host;  // Host entity
-  struct in_addr h_addr; // Address Struct
-  char hostname[LEN];    // Hostname
-  char ipaddr[LEN];      // IP Address
-  int port = 443;        // TCP Port Number
-  int count = 0;         // Number of pings
+  struct hostent *host;    // Host entity
+  struct in_addr h_addr;   // Address Struct
+  char hostname[LEN];      // Hostname
+  char ipaddr[LEN];        // IP Address
+  int port = 443;          // TCP Port Number
+  int count = 0;           // Number of pings
+  boolean audible = FALSE; // Audible ping
   // Statistics
   int seq = 0;           // Sequence number
   double stat_sum = 0;
@@ -278,6 +280,10 @@ int main(int argc, char *argv[]) {
 	  break;
 	}
       }
+      // Audible ping
+      if ((strncmp(argv[i], "-a", LEN) == 0) || (strncmp(argv[i], "--audible", LEN) == 0)) {
+	audible = TRUE;
+      }
       // Help options
       if ((strncmp(argv[i], "-h", LEN) == 0) || (strncmp(argv[i], "--help", LEN) == 0)) {
 	break;
@@ -330,7 +336,10 @@ int main(int argc, char *argv[]) {
     // single ping
     rtt = tcp_ping(ipaddr, port);
     seq++;
-    
+
+    // Display audible bell (if requested)
+    if (audible) printf("\a");
+
     // Display RTT latency
     if (display == 0) {
       if (rtt > 0) {
