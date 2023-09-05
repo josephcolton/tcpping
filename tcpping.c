@@ -218,6 +218,7 @@ int main(int argc, char *argv[]) {
 	  printf("Parse Error: Missing port number.\n");
 	  break;
 	}
+	continue;
       }
       // Ping count
       if ((strncmp(argv[i], "-c", LEN) == 0) || (strncmp(argv[i], "--count", LEN) == 0)) {
@@ -229,6 +230,7 @@ int main(int argc, char *argv[]) {
 	  printf("Parse Error: Missing ping count number.\n");
 	  break;
 	}
+	continue;
       }
       // Skip count
       if ((strncmp(argv[i], "-s", LEN) == 0) || (strncmp(argv[i], "--skip", LEN) == 0)) {
@@ -240,6 +242,7 @@ int main(int argc, char *argv[]) {
 	  printf("Parse Error: Missing skip/ignore count number.\n");
 	  break;
 	}
+	continue;
       }
       // Interval seconds
       if ((strncmp(argv[i], "-i", LEN) == 0) || (strncmp(argv[i], "--interval", LEN) == 0)) {
@@ -251,6 +254,7 @@ int main(int argc, char *argv[]) {
 	  printf("Parse Error: Missing interval seconds.\n");
 	  break;
 	}
+	continue;
       }
       // Timeout seconds
       if ((strncmp(argv[i], "-t", LEN) == 0) || (strncmp(argv[i], "--timeout", LEN) == 0)) {
@@ -262,6 +266,7 @@ int main(int argc, char *argv[]) {
 	  printf("Parse Error: Missing timeout seconds.\n");
 	  break;
 	}
+	continue;
       }
       // Display settings
       if ((strncmp(argv[i], "-d", LEN) == 0) || (strncmp(argv[i], "--display", LEN) == 0)) {
@@ -279,10 +284,12 @@ int main(int argc, char *argv[]) {
 	  printf("Parse Error: Missing count number.\n");
 	  break;
 	}
+	continue;
       }
       // Audible ping
       if ((strncmp(argv[i], "-a", LEN) == 0) || (strncmp(argv[i], "--audible", LEN) == 0)) {
 	audible = TRUE;
+	continue;
       }
       // Help options
       if ((strncmp(argv[i], "-h", LEN) == 0) || (strncmp(argv[i], "--help", LEN) == 0)) {
@@ -293,6 +300,8 @@ int main(int argc, char *argv[]) {
 	printf("tcpping %s\n", version);
 	return 0;
       }
+      // Option does not appear valid
+      printf("Unknown option: %s\n", argv[i]);
     }
     // Finished Options
     else {
@@ -305,7 +314,7 @@ int main(int argc, char *argv[]) {
 	status = 1;
       }
     }
-  }
+  } // End of for loop
   
   // Verify arguments
   if (status < 1) {
