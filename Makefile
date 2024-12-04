@@ -1,10 +1,14 @@
-CC = gcc
+CC ?= gcc
+CFLAGS ?= -O2 -Wall
+LDFLAGS ?=
+PREFIX ?= /usr/bin
+TARGET = tcpping
 
 tcpping: tcpping.c
 	$(CC) tcpping.c -o tcpping
 
-install: tcpping
-	sudo cp tcpping /usr/bin/
+install: $(TARGET)
+	install -Dm755 $(TARGET) $(PREFIX)/$(TARGET)
 
 clean:
-	rm tcpping
+	rm -f $(TARGET)
