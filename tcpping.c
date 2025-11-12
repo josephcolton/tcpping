@@ -16,6 +16,7 @@
 #include <errno.h>     // errno
 #include <fcntl.h>     // Non-blocking
 #include <signal.h>    // Handle SIGINT, SIGTERM
+#include <sys/select.h> // select
 
 /*************************
  * Globals and Constants *
