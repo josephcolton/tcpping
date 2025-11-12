@@ -8,7 +8,7 @@ tcpping: tcpping.c
 	$(CC) $(CFLAGS) $(LDFLAGS) tcpping.c -o tcpping
 
 install: $(TARGET)
-	install -Dm755 $(TARGET) $(PREFIX)/$(TARGET)
+	install -Dm755 $(TARGET) $(DESTDIR)$(PREFIX)/$(TARGET)
 
 clean:
 	rm -f $(TARGET)
