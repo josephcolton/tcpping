@@ -26,27 +26,26 @@ const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
 int terminate = FALSE; // SIGTERM, SIGINT triggered
 
-/*********************************************
- * tcp_ping - Single tcp ping to ipaddr:port *
- *                                           *
- * Returns the RTT in milliseconds.          *
- * Returns -1 on timeout.                    *
- * Returns -2 on failure connecting.         * 
- *********************************************/
-double tcp_ping(char *ipaddr, int port) {
+/*****************************************************
+ * tcp_ping - Single tcp ping to addr                *
+ *                                                   *
+ * Returns the RTT in milliseconds.                  *
+ * Returns -1 on timeout.                            *
+ * Returns -2 on failure connecting.                 *
+ *****************************************************/
+double tcp_ping(struct sockaddr *addr, socklen_t addrlen) {
   int sock;
   long arg;
   double rtt, diff_sec, diff_nsec;
-  struct sockaddr_in address;
   struct timespec timestamp1, timestamp2;
   fd_set fdset;
   struct timeval tv; // Time value for timeout checks
   int status;
   int optval;
   socklen_t optlen;
-  
+
   // socket create and verification
-  sock = socket(AF_INET, SOCK_STREAM, 0);
+  sock = socket(addr->sa_family, SOCK_STREAM, 0);
   if (sock == -1) {
     printf("Socket creation failed!\n");
     exit(0);
@@ -56,21 +55,16 @@ double tcp_ping(char *ipaddr, int port) {
   arg = fcntl(sock, F_GETFL, NULL); // Get current args
   arg |= O_NONBLOCK;                // Add the non-blocking option
   fcntl(sock, F_SETFL, arg);
-  
+
   // Set timeout
   tv.tv_sec = timeout;
   tv.tv_usec = 0;
-
-  // Set packet information
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = inet_addr(ipaddr);
-  address.sin_port = htons(port);
 
   // Read clock before sending/connecting
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp1);
 
   // Connect the client socket to server socket
-  status = connect(sock, (struct sockaddr *)&address, sizeof(address));
+  status = connect(sock, addr, addrlen);
 
   // Should be a negative status unless the tcp handshake is really fast. :)
   if (status < 0) {
@@ -154,6 +148,8 @@ void usage(char *binary) {
   printf("Usage:\n\n");
   printf("\t%s [OPTIONS] HOSTNAME\n\n", binary);
   printf("OPTIONS:\n");
+  printf("\t-4, --ipv4           Use IPv4 (default)\n");
+  printf("\t-6, --ipv6           Use IPv6\n");
   printf("\t-a, --audible        Audible ping sound\n");
   printf("\t-c, --count COUNT    Stop after COUNT tcp pings (default: unlimited)\n");
   printf("\t-p, --port PORT      TCP port number (default: 443)\n");
@@ -176,11 +172,10 @@ void usage(char *binary) {
  * statistical results.                           *
  **************************************************/
 int main(int argc, char *argv[]) {
-  struct hostent *host;    // Host entity
-  struct in_addr h_addr;   // Address Struct
-  char hostname[LEN];      // Hostname
-  char ipaddr[LEN];        // IP Address
-  int port = 443;          // TCP Port Number
+  char hostname[LEN];            // Hostname
+  char ipaddr[INET6_ADDRSTRLEN]; // IP Address
+  int port = 443;                // TCP Port Number
+  int ip_version = 4;            // IP version (4 or 6)
   int count = 0;           // Number of pings
   boolean audible = FALSE; // Audible ping
   // Statistics
@@ -286,6 +281,16 @@ int main(int argc, char *argv[]) {
 	}
 	continue;
       }
+      // IPv4
+      if ((strncmp(argv[i], "-4", LEN) == 0) || (strncmp(argv[i], "--ipv4", LEN) == 0)) {
+	ip_version = 4;
+	continue;
+      }
+      // IPv6
+      if ((strncmp(argv[i], "-6", LEN) == 0) || (strncmp(argv[i], "--ipv6", LEN) == 0)) {
+	ip_version = 6;
+	continue;
+      }
       // Audible ping
       if ((strncmp(argv[i], "-a", LEN) == 0) || (strncmp(argv[i], "--audible", LEN) == 0)) {
 	audible = TRUE;
@@ -323,12 +328,24 @@ int main(int argc, char *argv[]) {
   }
 
   // Get the hostname from the cli
-  if ((host = gethostbyname(hostname)) == NULL) {
-    printf("Lookup for '%s' failed.\n", hostname);
+  struct addrinfo hints, *res;
+  char port_str[16];
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = (ip_version == 6) ? AF_INET6 : AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  snprintf(port_str, sizeof(port_str), "%d", port);
+  int gai_err = getaddrinfo(hostname, port_str, &hints, &res);
+  if (gai_err != 0) {
+    printf("Lookup for '%s' failed: %s\n", hostname, gai_strerror(gai_err));
     exit(1);
   }
-  h_addr.s_addr = *((unsigned long *) host->h_addr_list[0]);
-  strncpy(ipaddr, inet_ntoa(h_addr), LEN);
+  if (res->ai_family == AF_INET6) {
+    struct sockaddr_in6 *s = (struct sockaddr_in6 *)res->ai_addr;
+    inet_ntop(AF_INET6, &s->sin6_addr, ipaddr, sizeof(ipaddr));
+  } else {
+    struct sockaddr_in *s = (struct sockaddr_in *)res->ai_addr;
+    inet_ntop(AF_INET, &s->sin_addr, ipaddr, sizeof(ipaddr));
+  }
   
   // Start ping process
   if (display == 0 || display == 1)
@@ -343,7 +360,7 @@ int main(int argc, char *argv[]) {
   int jitter_count = 0;
   while(!terminate && (count == 0 || countdown)) {
     // single ping
-    rtt = tcp_ping(ipaddr, port);
+    rtt = tcp_ping(res->ai_addr, res->ai_addrlen);
     seq++;
 
     // Display audible bell (if requested)
@@ -404,6 +421,7 @@ int main(int argc, char *argv[]) {
 
   // Read clock after stopping tcp pinging
   clock_gettime(CLOCK_MONOTONIC_RAW, &mainstamp2);
+  freeaddrinfo(res);
   diff_sec = mainstamp2.tv_sec - mainstamp1.tv_sec;
   diff_nsec = mainstamp2.tv_nsec - mainstamp1.tv_nsec;
   total_time = diff_sec * 1000;
