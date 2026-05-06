@@ -1,0 +1,115 @@
+.TH TCPPING 1 "May 2026" "tcpping 1.1.0" "User Commands"
+.SH NAME
+tcpping \- measure TCP round-trip latency using the TCP three-way handshake
+.SH SYNOPSIS
+.B tcpping
+[\fIOPTIONS\fR] \fIHOSTNAME\fR
+.SH DESCRIPTION
+.B tcpping
+measures the round-trip time (RTT) latency between the local host and a remote
+server by timing the TCP three-way handshake.
+It sends a SYN packet, waits for the SYN\-ACK, then immediately closes the
+connection and reports the elapsed time.
+.PP
+By default,
+.B tcpping
+runs indefinitely until interrupted with
+.BR Ctrl\-C ,
+at which point it prints a statistics summary.
+.SH OPTIONS
+.TP
+.BR \-4 ", " \-\-ipv4
+Use IPv4 (default).
+.TP
+.BR \-6 ", " \-\-ipv6
+Use IPv6.
+.TP
+.BR \-a ", " \-\-audible
+Emit a terminal bell character on each ping.
+.TP
+.BI \-c " COUNT" ", \-\-count " COUNT
+Stop after \fICOUNT\fR pings.
+Without this option, pinging continues until interrupted.
+.TP
+.BI \-p " PORT" ", \-\-port " PORT
+Connect to \fIPORT\fR (default: 443).
+.TP
+.BI \-i " SEC" ", \-\-interval " SEC
+Wait \fISEC\fR seconds between pings (default: 1).
+.TP
+.BI \-s " COUNT" ", \-\-skip " COUNT
+Exclude the first \fICOUNT\fR pings from statistics (default: 0).
+Useful to let the connection warm up before measuring.
+.TP
+.BI \-t " SEC" ", \-\-timeout " SEC
+Wait \fISEC\fR seconds before declaring a ping timed out (default: 3).
+.TP
+.BI \-d " MODE" ", \-\-display " MODE
+Control output verbosity.
+.RS
+.TP
+.B all
+Print each ping result and final statistics (default).
+.TP
+.B stat
+Print only the final statistics block.
+.TP
+.B clean
+Print minimal key=value statistics suitable for scripted parsing.
+.RE
+.TP
+.BR \-h ", " \-\-help
+Display a usage summary and exit.
+.TP
+.BR \-v ", " \-\-version
+Display version information and exit.
+.SH EXAMPLES
+Ping example.com on the default port (443) until interrupted:
+.PP
+.RS 4
+.EX
+tcpping example.com
+.EE
+.RE
+.PP
+Send 5 pings to TCP port 22 (SSH) using IPv4:
+.PP
+.RS 4
+.EX
+tcpping \-4 \-c 5 \-p 22 example.com
+.EE
+.RE
+.PP
+Ping using IPv6, showing only the final statistics:
+.PP
+.RS 4
+.EX
+tcpping \-6 \-c 10 \-d stat example.com
+.EE
+.RE
+.PP
+Warm up with 3 skipped pings, then collect 10 measured pings:
+.PP
+.RS 4
+.EX
+tcpping \-s 3 \-c 13 example.com
+.EE
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Hostname lookup failed.
+.SH AUTHOR
+Joseph Colton <josephcolton@gmail.com>
+.br
+https://github.com/josephcolton
+.SH LICENSE
+GNU General Public License v3.0 or later.
+.br
+<https://www.gnu.org/licenses/gpl\-3.0.en.html>
+.SH SEE ALSO
+.BR ping (8),
+.BR traceroute (8)

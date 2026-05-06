@@ -2,39 +2,63 @@
 Utility for performing a TCP based ping
 
 # Installation
-You can build the program using the following instructions.
-
 ```
 make
 sudo make install
 ```
 
-The tcpping utility will be installed in the **/usr/bin/** directory.
+The tcpping utility will be installed in **/usr/bin/** and the man page in **/usr/share/man/man1/**.
 
 # Running tcpping
-The tcpping utility is used to test the round trip time RTT latency between your client and a remote server.  Because TCP requires a port number to connect to, tcpping defaults to connecting to TCP port 443 (HTTPS).  It will connect to the remote server using the TCP threeway handshake.  This process requires the tcpping utility to send a SYN packet and wait for the SYN-ACK to return.  At this point, the utility has seen a round trip communication, so it can disconnect and report the time that was consumed in the process.
+The tcpping utility measures the round-trip time (RTT) latency between your client and a remote server by timing the TCP three-way handshake.  It sends a SYN packet and waits for the SYN-ACK, then immediately closes the connection and reports the elapsed time.
 
-The basic execution of the program would be to use tcpping to connect to a remote server.  The following would connect to example.com on TCP port 443.
+The basic execution connects to a remote host on TCP port 443 (HTTPS):
 
 ```
 tcpping example.com
 ```
 
-This would start an infinite loop of pings similar to a standard Linux based ping command.  You can use the **Ctrl-C** key sequence to end the program and get statistics.
+This starts an infinite loop of pings similar to a standard Linux ping.  Press **Ctrl-C** to stop and see statistics.
 
-You can connect to a different port number using the **-p** option.  The following would connect to TCP port 22 (SSH).
+# Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-4`, `--ipv4` | yes | Use IPv4 |
+| `-6`, `--ipv6` | no | Use IPv6 |
+| `-a`, `--audible` | off | Audible bell on each ping |
+| `-c COUNT`, `--count COUNT` | unlimited | Stop after COUNT pings |
+| `-p PORT`, `--port PORT` | 443 | Target TCP port |
+| `-i SEC`, `--interval SEC` | 1 | Seconds between pings |
+| `-s COUNT`, `--skip COUNT` | 0 | Pings to exclude from statistics |
+| `-t SEC`, `--timeout SEC` | 3 | Seconds before timeout |
+| `-d MODE`, `--display MODE` | `all` | Output mode: `all`, `stat`, or `clean` |
+
+The `-s`/`--skip` option excludes the first N pings from statistics, which is useful to let the connection warm up before measuring.
+
+The `-d clean` mode outputs minimal key=value lines suitable for scripted parsing.
+
+# Examples
+
+Connect to TCP port 22 (SSH) with a count of 5:
 
 ```
-tcpping -p 22 example.com
+tcpping -p 22 -c 5 example.com
 ```
 
-If you want to indicate the number of TCP pings to send, you can use the **-c** option.
+Connect using IPv6:
 
 ```
-tcpping -c 10 example.com
+tcpping -6 example.com
 ```
 
-The following is a sample execution of running tcpping against a web site renamed **example.com** with **5** probes targetting TCP port **443**.
+Collect 10 pings, skipping the first 3 from statistics, showing only the summary:
+
+```
+tcpping -s 3 -c 13 -d stat example.com
+```
+
+Sample output for 5 pings to TCP port 443:
 
 ```
 bash$ tcpping -c 5 -p 443 example.com

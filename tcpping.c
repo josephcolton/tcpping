@@ -20,7 +20,7 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.0.8";
+const char version[] = "1.1.0";
 typedef enum {FALSE = 0, TRUE = 1} boolean;
 const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
