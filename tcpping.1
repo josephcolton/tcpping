@@ -1,4 +1,4 @@
-.TH TCPPING 1 "May 2026" "tcpping 1.1.0" "User Commands"
+.TH TCPPING 1 "August 2026" "tcpping 1.2.0" "User Commands"
 .SH NAME
 tcpping \- measure TCP round-trip latency using the TCP three-way handshake
 .SH SYNOPSIS
@@ -98,10 +98,15 @@ tcpping \-s 3 \-c 13 example.com
 .SH EXIT STATUS
 .TP
 .B 0
-Success.
+At least one tcp ping succeeded.
 .TP
 .B 1
-Hostname lookup failed.
+The run completed but no tcp ping succeeded (100% loss, or interrupted
+before any reply).
+.TP
+.B 2
+An error prevented the pings from running, such as invalid arguments,
+a hostname lookup failure, or a socket error.
 .SH AUTHOR
 Joseph Colton <josephcolton@gmail.com>
 .br

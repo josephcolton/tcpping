@@ -20,7 +20,7 @@
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.1.0";
+const char version[] = "1.2.0";
 typedef enum {FALSE = 0, TRUE = 1} boolean;
 const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
@@ -48,7 +48,7 @@ double tcp_ping(struct sockaddr *addr, socklen_t addrlen) {
   sock = socket(addr->sa_family, SOCK_STREAM, 0);
   if (sock == -1) {
     printf("Socket creation failed!\n");
-    exit(0);
+    exit(2);
   }
 
   // Set socket as non-blocking
@@ -306,7 +306,9 @@ int main(int argc, char *argv[]) {
 	return 0;
       }
       // Option does not appear valid
+      status = -1;
       printf("Unknown option: %s\n", argv[i]);
+      break;
     }
     // Finished Options
     else {
@@ -324,7 +326,8 @@ int main(int argc, char *argv[]) {
   // Verify arguments
   if (status < 1) {
     usage(argv[0]);
-    exit(0);
+    // status < 0 means a real parse error; status == 0 means help/no host
+    exit(status < 0 ? 2 : 0);
   }
 
   // Get the hostname from the cli
@@ -337,7 +340,7 @@ int main(int argc, char *argv[]) {
   int gai_err = getaddrinfo(hostname, port_str, &hints, &res);
   if (gai_err != 0) {
     printf("Lookup for '%s' failed: %s\n", hostname, gai_strerror(gai_err));
-    exit(1);
+    exit(2);
   }
   if (res->ai_family == AF_INET6) {
     struct sockaddr_in6 *s = (struct sockaddr_in6 *)res->ai_addr;
@@ -442,5 +445,10 @@ int main(int argc, char *argv[]) {
     printf("Jitter: %0.3f\n", jitter);
     printf("Loss: %0.1f\n", ping_loss);
   }
-  return 0;
+
+  // Exit status follows ping(8): 0 if at least one ping succeeded,
+  // 1 if the run completed but nothing came back (100% loss or
+  // interrupted before any success). Error cases (bad args, DNS
+  // lookup, socket failure) exit with 2 earlier.
+  return (ping_success > 0) ? 0 : 1;
 }

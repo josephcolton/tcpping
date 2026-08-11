@@ -73,6 +73,21 @@ TCP PING example.com (10.10.10.10) tcp port 443
 rtt min/ave/max/range/jitter = 7.738/7.958/8.488/0.750/0.369 ms
 ```
 
+# Exit Status
+Following the convention set by `ping`, the exit code reflects reachability so that `tcpping` composes cleanly in shell scripts:
+
+| Code | Meaning |
+|------|---------|
+| `0` | At least one tcp ping succeeded |
+| `1` | The run completed but no tcp ping succeeded (100% loss, or interrupted before any reply) |
+| `2` | An error prevented the pings from running (invalid arguments, hostname lookup failure, or socket error) |
+
+For example:
+
+```
+tcpping -p 22 -c 5 example.com && echo up || echo down
+```
+
 # Credits
 The tcpping utility was written by Joseph Colton <josephcolton@gmail.com> - https://github.com/josephcolton
 
