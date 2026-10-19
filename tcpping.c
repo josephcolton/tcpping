@@ -8,23 +8,101 @@
 #include <time.h>      // Clock
 #include <stdio.h>     // printf
 #include <stdlib.h>    // exit
-#include <unistd.h>    // sleep
 #include <ctype.h>     // isdigit
-#include <arpa/inet.h> // inet_addr()
-#include <netdb.h>     // hostent, gethostbyname()
 #include <string.h>    // strncpy
 #include <errno.h>     // errno
-#include <fcntl.h>     // Non-blocking
 #include <signal.h>    // Handle SIGINT, SIGTERM
+
+#ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600 // Windows Vista or newer for inet_ntop()
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>  // Sockets
+#include <ws2tcpip.h>  // getaddrinfo(), inet_ntop()
+#include <windows.h>   // QueryPerformanceCounter(), Sleep()
+#ifdef _MSC_VER
+#pragma comment(lib, "ws2_32.lib")
+#endif
+typedef SOCKET socket_t;
+#define close_socket closesocket
+#define CONNECT_IN_PROGRESS() (WSAGetLastError() == WSAEWOULDBLOCK)
+#else
+#include <unistd.h>    // sleep
+#include <arpa/inet.h> // inet_ntop()
+#include <netdb.h>     // getaddrinfo()
+#include <fcntl.h>     // Non-blocking
+typedef int socket_t;
+#define INVALID_SOCKET -1
+#define close_socket close
+#define CONNECT_IN_PROGRESS() (errno == EINPROGRESS)
+#endif
 
 /*************************
  * Globals and Constants *
  *************************/
-const char version[] = "1.2.0";
+const char version[] = "1.3.0";
+#ifndef TRUE // windows.h already defines TRUE and FALSE
 typedef enum {FALSE = 0, TRUE = 1} boolean;
+#else
+typedef int boolean;
+#endif
 const int LEN = 256;   // Maximum hostname size
 int timeout = 3;       // Seconds before timeout
-int terminate = FALSE; // SIGTERM, SIGINT triggered
+volatile sig_atomic_t terminate = FALSE; // SIGTERM, SIGINT triggered
+
+/*****************************************************
+ * now_ms - Read the monotonic clock                 *
+ *                                                   *
+ * Returns the current time in milliseconds.         *
+ *****************************************************/
+double now_ms(void) {
+#ifdef _WIN32
+  static LARGE_INTEGER freq;
+  LARGE_INTEGER counter;
+  if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
+  QueryPerformanceCounter(&counter);
+  return (double)counter.QuadPart * 1000.0 / (double)freq.QuadPart;
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
+#endif
+}
+
+/*****************************************************
+ * sleep_seconds - Wait between pings                *
+ *                                                   *
+ * Windows does not interrupt Sleep() on Ctrl-C, so  *
+ * sleep in short slices and stop on terminate.      *
+ * Slices are measured against a deadline because    *
+ * Windows rounds each Sleep() up to its timer tick. *
+ *****************************************************/
+void sleep_seconds(int seconds) {
+#ifdef _WIN32
+  double deadline = now_ms() + seconds * 1000.0;
+  double remaining;
+  while (!terminate && (remaining = deadline - now_ms()) > 0)
+    Sleep(remaining > 100 ? 100 : (DWORD)remaining + 1);
+#else
+  sleep(seconds);
+#endif
+}
+
+/*****************************************************
+ * set_nonblocking - Make a socket non-blocking      *
+ *****************************************************/
+void set_nonblocking(socket_t sock) {
+#ifdef _WIN32
+  u_long mode = 1;
+  ioctlsocket(sock, FIONBIO, &mode);
+#else
+  long arg;
+  arg = fcntl(sock, F_GETFL, NULL); // Get current args
+  arg |= O_NONBLOCK;                // Add the non-blocking option
+  fcntl(sock, F_SETFL, arg);
+#endif
+}
 
 /*****************************************************
  * tcp_ping - Single tcp ping to addr                *
@@ -34,11 +112,9 @@ int terminate = FALSE; // SIGTERM, SIGINT triggered
  * Returns -2 on failure connecting.                 *
  *****************************************************/
 double tcp_ping(struct sockaddr *addr, socklen_t addrlen) {
-  int sock;
-  long arg;
-  double rtt, diff_sec, diff_nsec;
-  struct timespec timestamp1, timestamp2;
-  fd_set fdset;
+  socket_t sock;
+  double rtt, timestamp1, timestamp2 = 0;
+  fd_set writeset, exceptset;
   struct timeval tv; // Time value for timeout checks
   int status;
   int optval;
@@ -46,63 +122,76 @@ double tcp_ping(struct sockaddr *addr, socklen_t addrlen) {
 
   // socket create and verification
   sock = socket(addr->sa_family, SOCK_STREAM, 0);
-  if (sock == -1) {
+  if (sock == INVALID_SOCKET) {
     printf("Socket creation failed!\n");
     exit(2);
   }
 
   // Set socket as non-blocking
-  arg = fcntl(sock, F_GETFL, NULL); // Get current args
-  arg |= O_NONBLOCK;                // Add the non-blocking option
-  fcntl(sock, F_SETFL, arg);
+  set_nonblocking(sock);
 
   // Set timeout
   tv.tv_sec = timeout;
   tv.tv_usec = 0;
 
   // Read clock before sending/connecting
-  clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp1);
+  timestamp1 = now_ms();
 
   // Connect the client socket to server socket
   status = connect(sock, addr, addrlen);
 
   // Should be a negative status unless the tcp handshake is really fast. :)
   if (status < 0) {
-     if (errno == EINPROGRESS) {
+     if (CONNECT_IN_PROGRESS()) {
         do {
-           FD_ZERO(&fdset);
-           FD_SET(sock, &fdset);
-           status = select(sock+1, NULL, &fdset, NULL, &tv);
-           if (status < 0 && errno != EINTR) {
+           FD_ZERO(&writeset);
+           FD_SET(sock, &writeset);
+           // Windows reports a failed connect in the except set
+           FD_ZERO(&exceptset);
+           FD_SET(sock, &exceptset);
+           status = select((int)sock+1, NULL, &writeset, &exceptset, &tv);
+           // Read clock as soon as the handshake finishes (after SYN and ACK).
+           // getsockopt() below can block for a timer tick on Windows.
+           timestamp2 = now_ms();
+           if (status < 0 && errno == EINTR) {
+	     // Interrupted by a signal, keep waiting
+	     continue;
+           } else if (status < 0) {
 	     // Error connecting
+	     close_socket(sock);
              return -2;
            } else if (status > 0) {
-	     // Connected
+	     // Handshake finished, check whether it succeeded
+	     optval = 0;
 	     optlen = sizeof(int);
-	     getsockopt(sock, SOL_SOCKET, SO_ERROR, (void*)(&optval), &optlen);
+	     getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)(&optval), &optlen);
+	     if (optval != 0 || FD_ISSET(sock, &exceptset)) {
+	       // Connection refused or reset
+	       close_socket(sock);
+	       return -2;
+	     }
 	     break;
            } else {
 	     // Timeout
+	     close_socket(sock);
 	     return -1;
            }
         } while (1);
      } else {
        // Failure to connect
+       close_socket(sock);
        return -2;
      }
   }
 
-  // Read clock after sending/connecting (after SYN and ACK)
-  clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp2);
+  // Read clock if connect() finished immediately
+  if (status == 0) timestamp2 = now_ms();
 
   // Close the connection
-  close(sock);
+  close_socket(sock);
 
   // Calculate elapsed time
-  diff_sec = timestamp2.tv_sec - timestamp1.tv_sec;
-  diff_nsec = timestamp2.tv_nsec - timestamp1.tv_nsec;
-  rtt = diff_sec * 1000;
-  rtt += diff_nsec / 1000000;
+  rtt = timestamp2 - timestamp1;
 
   // Return elapsed time
   return rtt;
@@ -185,18 +274,25 @@ int main(int argc, char *argv[]) {
   int stat_count = 0;
   int ping_count = 0; int ping_success = 0; int ping_fail = 0;
   double ping_loss = 0.0;
-  double total_time, diff_sec, diff_nsec;
-  struct timespec mainstamp1, mainstamp2; // Keep track of complete elapsed run time
+  double total_time;
+  double mainstamp1, mainstamp2; // Keep track of complete elapsed run time
   int display = 0;  // 0 = All pings and stats, 1 = stats only, 2 = clean
   int interval = 1; // Number of seconds between pings
   int skip = 0;     // Number of pings to skip and ignore from stats
 
   // Signal interception
+#ifdef _WIN32
+  signal(SIGTERM, signal_handler);
+  signal(SIGINT, signal_handler);    // SIGINT Ctrl-C
+#else
   struct sigaction action;
+  memset(&action, 0, sizeof(action));
   action.sa_handler = signal_handler;
+  sigemptyset(&action.sa_mask);
   sigaction(SIGTERM, &action, NULL); // SIGTERM default kill -15
   sigaction(SIGINT, &action, NULL);  // SIGINT Ctrl-C
-  
+#endif
+
   // Parse arguments
   int status = 0;
   int i;
@@ -317,7 +413,8 @@ int main(int argc, char *argv[]) {
 	printf("Parse Error: Cannot determine HOSTNAME.\n");
 	break;
       } else {
-	strncpy(hostname, argv[i], LEN);
+	strncpy(hostname, argv[i], LEN - 1);
+	hostname[LEN - 1] = 0; // Long names are not null terminated by strncpy
 	status = 1;
       }
     }
@@ -329,6 +426,15 @@ int main(int argc, char *argv[]) {
     // status < 0 means a real parse error; status == 0 means help/no host
     exit(status < 0 ? 2 : 0);
   }
+
+#ifdef _WIN32
+  // Start Winsock
+  WSADATA wsadata;
+  if (WSAStartup(MAKEWORD(2, 2), &wsadata) != 0) {
+    printf("Winsock startup failed!\n");
+    exit(2);
+  }
+#endif
 
   // Get the hostname from the cli
   struct addrinfo hints, *res;
@@ -355,7 +461,7 @@ int main(int argc, char *argv[]) {
     printf("TCP PING %s (%s) tcp port %d\n", hostname, ipaddr, port);
 
   // Read clock before starting tcp pinging
-  clock_gettime(CLOCK_MONOTONIC_RAW, &mainstamp1);
+  mainstamp1 = now_ms();
 
   int countdown = count;
   double rtt;
@@ -419,16 +525,16 @@ int main(int argc, char *argv[]) {
     
     // Update countdown
     countdown--;
-    if (countdown) sleep(interval);
+    if (countdown) sleep_seconds(interval);
   }
 
   // Read clock after stopping tcp pinging
-  clock_gettime(CLOCK_MONOTONIC_RAW, &mainstamp2);
+  mainstamp2 = now_ms();
   freeaddrinfo(res);
-  diff_sec = mainstamp2.tv_sec - mainstamp1.tv_sec;
-  diff_nsec = mainstamp2.tv_nsec - mainstamp1.tv_nsec;
-  total_time = diff_sec * 1000;
-  total_time+= diff_nsec / 1000000;
+#ifdef _WIN32
+  WSACleanup();
+#endif
+  total_time = mainstamp2 - mainstamp1;
 
   // Display statistics
   if (display == 0 || display == 1) {

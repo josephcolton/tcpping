@@ -9,6 +9,23 @@ sudo make install
 
 The tcpping utility will be installed in **/usr/bin/** and the man page in **/usr/share/man/man1/**.
 
+## Windows
+tcpping also builds as a native Windows program (Windows Vista or newer).  With MinGW-w64 gcc (for example from MSYS2), run:
+
+```
+make
+```
+
+This creates **tcpping.exe**, which can be copied anywhere on the PATH.  Without make, build it directly:
+
+```
+gcc -O2 -Wall tcpping.c -o tcpping.exe -lws2_32
+```
+
+With Microsoft Visual C++, run `cl tcpping.c` from a Developer Command Prompt.
+
+On Windows, a connection to a closed port is reported as a connection error after about 2 seconds, because Windows retries a refused connection before giving up.
+
 # Running tcpping
 The tcpping utility measures the round-trip time (RTT) latency between your client and a remote server by timing the TCP three-way handshake.  It sends a SYN packet and waits for the SYN-ACK, then immediately closes the connection and reports the elapsed time.
 
